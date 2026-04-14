@@ -51,12 +51,58 @@
     background: rgba(40, 80, 100, 0.95);
   }
   #replayBtn { display: none; }
+  #captionBar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(8, 8, 8, 0.92);
+    padding: clamp(8px, 2vh, 16px) clamp(12px, 3vw, 32px);
+    min-height: clamp(50px, 10vh, 80px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+    border-top: 2px solid rgba(80, 80, 80, 0.4);
+  }
+  #captionBar.visible { opacity: 1; }
+  #captionSpeaker {
+    font-size: clamp(11px, 2vw, 14px);
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    color: #d4a843;
+  }
+  #captionText {
+    font-size: clamp(16px, 3.5vw, 22px);
+    font-weight: 500;
+    color: #e8e8e8;
+    line-height: 1.4;
+  }
+  #wrapper {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+  }
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
-<button id="startBtn">PLAY</button>
-<button id="replayBtn">REPLAY</button>
+<div id="wrapper">
+  <canvas id="c"></canvas>
+  <div id="captionBar">
+    <div id="captionSpeaker"></div>
+    <div id="captionText"></div>
+  </div>
+  <button id="startBtn">PLAY</button>
+  <button id="replayBtn">REPLAY</button>
+</div>
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -988,131 +1034,6 @@ function drawGalleryFish() {
   });
 }
 
-// ===== SPEECH BUBBLE (comic book style) =====
-
-function drawSpeechBubble(speaker, text, alpha) {
-  let pos = charPositions[speaker];
-  if (!pos) return;
-
-  ctx.save();
-  ctx.globalAlpha = Math.min(1, alpha);
-
-  // Measure text
-  ctx.font = 'bold 15px "Helvetica Neue", Arial, sans-serif';
-  let maxTextW = 340;
-
-  // Word wrap
-  let words = text.split(' ');
-  let lines = [], currentLine = '';
-  words.forEach(word => {
-    let test = currentLine ? currentLine+' '+word : word;
-    if (ctx.measureText(test).width > maxTextW) {
-      if (currentLine) lines.push(currentLine);
-      currentLine = word;
-    } else currentLine = test;
-  });
-  if (currentLine) lines.push(currentLine);
-
-  let lineH = 22;
-  let padX = 20, padY = 14;
-  let textW = 0;
-  lines.forEach(l => { let w = ctx.measureText(l).width; if (w > textW) textW = w; });
-  let bubbleW = textW + padX*2;
-  let bubbleH = lines.length * lineH + padY*2;
-  let r = 16; // corner radius
-
-  // Find the active caption to get bubbleDir
-  let bubbleDir = 'above';
-  for (let cap of captions) {
-    if (cap.speaker === speaker && time >= cap.start && time <= cap.end) {
-      bubbleDir = cap.bubbleDir || 'above';
-      break;
-    }
-  }
-
-  // Position bubble above character, offset based on direction
-  let tailX = pos.x;
-  let tailY = pos.y;
-  let bx, by;
-
-  if (bubbleDir === 'above-right') {
-    bx = tailX + 20;
-    by = tailY - bubbleH - 30;
-  } else if (bubbleDir === 'above-left') {
-    bx = tailX - bubbleW - 20;
-    by = tailY - bubbleH - 30;
-  } else {
-    bx = tailX - bubbleW/2;
-    by = tailY - bubbleH - 30;
-  }
-
-  // Clamp to screen edges
-  bx = Math.max(12, Math.min(W - bubbleW - 12, bx));
-  by = Math.max(12, Math.min(H - bubbleH - 40, by));
-
-  // Draw rounded rectangle
-  ctx.beginPath();
-  ctx.moveTo(bx+r, by);
-  ctx.lineTo(bx+bubbleW-r, by);
-  ctx.quadraticCurveTo(bx+bubbleW, by, bx+bubbleW, by+r);
-  ctx.lineTo(bx+bubbleW, by+bubbleH-r);
-  ctx.quadraticCurveTo(bx+bubbleW, by+bubbleH, bx+bubbleW-r, by+bubbleH);
-  ctx.lineTo(bx+r, by+bubbleH);
-  ctx.quadraticCurveTo(bx, by+bubbleH, bx, by+bubbleH-r);
-  ctx.lineTo(bx, by+r);
-  ctx.quadraticCurveTo(bx, by, bx+r, by);
-  ctx.closePath();
-  ctx.fillStyle = C.bubbleBg;
-  ctx.fill();
-  ctx.strokeStyle = C.bubbleBorder;
-  ctx.lineWidth = 2.5;
-  ctx.stroke();
-
-  // Tail triangle pointing to speaker
-  let tailBaseX, tailBaseX2;
-  // Figure out where tail connects to bubble bottom
-  let clampedTailX = Math.max(bx+25, Math.min(bx+bubbleW-25, tailX));
-  tailBaseX = clampedTailX - 10;
-  tailBaseX2 = clampedTailX + 10;
-
-  ctx.beginPath();
-  ctx.moveTo(tailBaseX, by+bubbleH-1);
-  ctx.lineTo(tailX, tailY);
-  ctx.lineTo(tailBaseX2, by+bubbleH-1);
-  ctx.closePath();
-  ctx.fillStyle = C.bubbleBg;
-  ctx.fill();
-  // Draw tail border lines (not the base, just the two sides)
-  ctx.beginPath();
-  ctx.moveTo(tailBaseX, by+bubbleH);
-  ctx.lineTo(tailX, tailY);
-  ctx.lineTo(tailBaseX2, by+bubbleH);
-  ctx.strokeStyle = C.bubbleBorder;
-  ctx.lineWidth = 2.5;
-  ctx.stroke();
-
-  // Cover the tail base with bubble fill to hide the border overlap
-  ctx.beginPath();
-  ctx.moveTo(tailBaseX-2, by+bubbleH-3);
-  ctx.lineTo(tailBaseX2+2, by+bubbleH-3);
-  ctx.lineTo(tailBaseX2+2, by+bubbleH+1);
-  ctx.lineTo(tailBaseX-2, by+bubbleH+1);
-  ctx.closePath();
-  ctx.fillStyle = C.bubbleBg;
-  ctx.fill();
-
-  // Text
-  ctx.font = 'bold 15px "Helvetica Neue", Arial, sans-serif';
-  ctx.fillStyle = C.bubbleText;
-  ctx.textBaseline = 'top';
-  lines.forEach((line, i) => {
-    ctx.fillText(line, bx+padX, by+padY+i*lineH);
-  });
-  ctx.textBaseline = 'alphabetic';
-
-  ctx.restore();
-}
-
 // ===== ENVIRONMENT =====
 
 function drawBubbles() {
@@ -1251,17 +1172,16 @@ function render() {
     drawOcean(0); drawBubbles(); drawParticles();
     drawCourtroomBack(); drawBench(W*0.5, H*0.38, 320, 120);
 
-    let adamX, adamFacingLeft = false;
+    let adamFacingLeft = false;
+    let adamX = W*0.28;
     // Fish rises up from under the plaintiff table
     let fishX = W*0.35;
     let fishY = lerp(H*0.62, H*0.38, easeOut(Math.min(1,(time-40.5)/2)));
 
     if (time > 49) {
       // Adam swims away to the LEFT (facing left)
-      adamX = lerp(W*0.3, -150, easeInOut((time-49)/2.5));
+      adamX = lerp(W*0.28, -150, easeInOut((time-49)/2.5));
       adamFacingLeft = true;
-    } else {
-      adamX = lerp(W*0.4, W*0.3, easeInOut(Math.min(1,(time-40)/3)));
     }
     drawAdam(adamX, H*0.50, 0.88, 0, false, adamFacingLeft);
     if (time > 40.5) drawFish(fishX, fishY, 0.65);
@@ -1277,14 +1197,24 @@ function render() {
     }
   }
 
-  // Draw speech bubbles LAST (on top of everything)
-  captions.forEach(cap => {
-    if (time >= cap.start && time <= cap.end) {
-      let fadeIn = Math.min(1,(time-cap.start)/0.25);
-      let fadeOut = Math.min(1,(cap.end-time)/0.25);
-      drawSpeechBubble(cap.speaker, cap.text, Math.min(fadeIn,fadeOut));
-    }
-  });
+  // Update HTML caption bar
+  let captionBar = document.getElementById('captionBar');
+  let captionSpeaker = document.getElementById('captionSpeaker');
+  let captionTextEl = document.getElementById('captionText');
+  let activeCap = null;
+  for (let cap of captions) {
+    if (time >= cap.start && time <= cap.end) { activeCap = cap; break; }
+  }
+  if (activeCap) {
+    let speakerNames = { judge: 'JUDGE HUMPBACK', adam: 'ADAM', orca: 'DEFENSE ATTORNEY', fish: 'FISH ASSISTANT', beluga: 'BELUGA' };
+    let speakerColors = { judge: '#d4a843', adam: '#c44040', orca: '#4a6aaa', fish: '#7aaaca', beluga: '#c0bcb0' };
+    captionSpeaker.textContent = speakerNames[activeCap.speaker] || activeCap.speaker;
+    captionSpeaker.style.color = speakerColors[activeCap.speaker] || '#888';
+    captionTextEl.textContent = activeCap.text;
+    captionBar.classList.add('visible');
+  } else {
+    captionBar.classList.remove('visible');
+  }
 }
 
 // Animation loop
@@ -1297,19 +1227,17 @@ function animate(timestamp) {
   if (time < 54) animFrame = requestAnimationFrame(animate);
 }
 
-document.getElementById('startBtn').addEventListener('click', function() {
-  this.style.display = 'none';
+function resetAndPlay() {
+  document.getElementById('startBtn').style.display = 'none';
   document.getElementById('replayBtn').style.display = 'none';
-  time = 0; lastTimestamp = null; gavelStrike = false;
-  animate(performance.now());
-});
-
-document.getElementById('replayBtn').addEventListener('click', function() {
-  this.style.display = 'none';
+  document.getElementById('captionBar').classList.remove('visible');
   time = 0; lastTimestamp = null; gavelStrike = false;
   if (animFrame) cancelAnimationFrame(animFrame);
   animate(performance.now());
-});
+}
+
+document.getElementById('startBtn').addEventListener('click', resetAndPlay);
+document.getElementById('replayBtn').addEventListener('click', resetAndPlay);
 
 time = 0; render();
 </script>
